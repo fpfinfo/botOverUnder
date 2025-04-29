@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Live Over/Under – NBA</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="theme-color" content="#0078d4">
+  <style>
+    body { font-family:"Segoe UI",sans-serif; background:#f0f2f5; margin:0; color:#333; }
+    header { background:#0078d4; color:#fff; padding:1rem; text-align:center; }
+    #controls { display:flex; flex-wrap:wrap; gap:1rem; padding:1rem; background:#fff; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    #controls > * { flex:1 1 200px; }
+    select, input, button { width:100%; padding:.5rem; font-size:1rem; border:1px solid #ccc; border-radius:.25rem; }
+    button { background:#0078d4; color:#fff; border:none; cursor:pointer; }
+    button:disabled { background:#aaa; cursor:not-allowed; }
+    #notifications { position:fixed; bottom:1rem; right:1rem; display:flex; flex-direction:column; gap:.5rem; z-index:1000; }
+    .toast { background:#333; color:#fff; padding:.75rem 1rem; border-radius:.25rem; opacity:.9; animation:fadeout .5s ease-in-out forwards; animation-delay:4s; }
+    @keyframes fadeout { to { opacity:0; transform:translateY(20px); } }
+  </style>
+</head>
+<body>
+  <header><h1>⚡ Live Over/Under – NBA</h1></header>
+  <section id="controls">
+    <select id="gameSelect" disabled><option value="">Carregando jogos da NBA...</option></select>
+    <input type="number" id="limitOver" placeholder="Limite Over (pontos)"/>
+    <input type="number" id="limitUnder" placeholder="Limite Under (pontos)"/>
+    <button id="startButton" disabled>🔔 Começar Monitoramento</button>
+  </section>
+  <div id="notifications"></div>
+  <script>
+    const gameSelect = document.getElementById("gameSelect");
+    const limitOver = document.getElementById("limitOver");
+    const limitUnder = document.getElementById("limitUnder");
+    const startButton = document.getElementById("startButton");
+    const notifications = document.getElementById("notifications");
+    let intervalId;
+
+    function showToast(msg) {
+      const div = document.createElement("div");
+      div.className = "toast";
+      div.textContent = msg;
+      notifications.appendChild(div);
+      setTimeout(() => notifications.removeChild(div), 5000);
+    }
+
+    function getLocalDate() {
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yy = d.getFullYear();
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    async function fetchGames() {
+      const date = getLocalDate();
+      try {
+        const res = await fetch(`/api/games?date=${date}`);
+        const { response } = await res.json();
+        gameSelect.innerHTML = '<option value="">Selecione o Jogo...</option>';
+        if (!response.length) {
+          gameSelect.innerHTML = '<option value="">Nenhum jogo hoje</option>';
+        } else {
+          response.forEach(g => {
+            const o = document.createElement("option");
+            o.value = g.id;
+            o.textContent = `${g.teams.home.nickname} @ ${g.teams.away.nickname}`;
+            gameSelect.appendChild(o);
+          });
+        }
+      } catch {
+        showToast("❌ Erro ao carregar jogos");
+      }
+      gameSelect.disabled = false;
+    }
+
+    function checkEnable() {
+      startButton.disabled = !(gameSelect.value && limitOver.value && limitUnder.value);
+    }
+
+    async function monitor() {
+      const date = getLocalDate();
+      const gameId = gameSelect.value;
+      const over = +limitOver.value;
+      const under = +limitUnder.value;
+      try {
+        const res = await fetch(`/api/games?date=${date}`);
+        const { response } = await res.json();
+        const match = response.find(m => m.id == gameId);
+        if (!match) return;
+        const total = match.scores.home + match.scores.away;
+        if (total >= over) showToast(`🔥 OVER! Total: ${total} ≥ ${over}`);
+        else if (total <= under) showToast(`❄️ UNDER! Total: ${total} ≤ ${under}`);
+      } catch {
+        showToast("❌ Erro no monitoramento");
+      }
+    }
+
+    function startMonitoring() {
+      clearInterval(intervalId);
+      showToast("🚀 Monitoramento iniciado");
+      monitor();
+      intervalId = setInterval(monitor, 15000);
+      startButton.textContent = "⏸️ Pausar";
+      startButton.onclick = stopMonitoring;
+    }
+
+    function stopMonitoring() {
+      clearInterval(intervalId);
+      showToast("🛑 Monitoramento pausado");
+      startButton.textContent = "🔔 Começar";
+      startButton.onclick = startMonitoring;
+    }
+
+    gameSelect.addEventListener("change", checkEnable);
+    limitOver.addEventListener("input", checkEnable);
+    limitUnder.addEventListener("input", checkEnable);
+    startButton.addEventListener("click", startMonitoring);
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(() => console.log('SW registrado')).catch(console.error);
+      });
+    }
+
+    fetchGames();
+  </script>
+</body>
+</html>
