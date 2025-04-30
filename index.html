@@ -243,7 +243,6 @@
   <script>
     // Constants
     const PROXY_BASE   = 'https://overunder-nba-proxy.herokuapp.com';
-    const PROXY_WS     = 'wss://overunder-nba-proxy.herokuapp.com/ws';
     let pollingInterval = 15;
     let settings = {};
     let gamesList = [];
@@ -254,19 +253,16 @@
 
     // Helper: show toast + push + webhook + sound
     async function showToast(msg) {
-      // GUI
       const div = document.createElement('div');
       div.className = 'toast';
       div.textContent = msg;
       notifications.appendChild(div);
       setTimeout(() => notifications.removeChild(div), 5000);
 
-      // Web Notifications
       if (Notification.permission === 'granted') {
         new Notification(msg);
       }
 
-      // Webhook
       if (settings.webhook) {
         fetch(settings.webhook, {
           method: 'POST',
@@ -275,7 +271,6 @@
         }).catch(console.warn);
       }
 
-      // Stats & History
       statCount++;
       document.getElementById('statCount').textContent = statCount;
       const total = parseInt(msg.match(/\d+/)[0],10);
@@ -288,7 +283,6 @@
       localStorage.setItem('ouHistory', JSON.stringify(hist.slice(0,50)));
       renderHistory();
 
-      // Sound
       if (settings.sound) {
         const snd = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
         snd.volume = settings.volume;
@@ -307,18 +301,14 @@
       });
     }
 
-    // Fetch games (with skeleton)
     async function fetchGames(date) {
       gamesList = [];
       const configs = document.getElementById('configs');
-
-      // skeleton UI
       configs.innerHTML = '';
       for(let i=0;i<3;i++){
         const sk = document.createElement('div'); sk.className='skeleton'; sk.style.height='2.5rem';
         configs.appendChild(sk);
       }
-
       try {
         const res = await fetch(`${PROXY_BASE}/api/games?date=${date}`);
         const { response } = await res.json();
@@ -330,7 +320,6 @@
       configs.innerHTML = '';
     }
 
-    // Add a config row
     function addConfigRow() {
       const tpl = document.getElementById('configTemplate');
       const row = tpl.content.cloneNode(true);
@@ -339,7 +328,6 @@
       const underIn = row.querySelector('.limitUnderRow');
       const remBtn = row.querySelector('.removeRow');
 
-      // preencher opções
       select.innerHTML = '<option value="">Selecione jogo...</option>';
       gamesList.forEach(g => {
         const o = document.createElement('option');
@@ -358,7 +346,6 @@
       document.getElementById('configs').appendChild(rowContainer);
     }
 
-    // Habilita botão iniciar
     function checkEnable() {
       const rows = document.querySelectorAll('.config-row');
       let ok = rows.length > 0;
@@ -369,14 +356,12 @@
       startButton.disabled = !ok;
     }
 
-    // Monitoramento (polling fallback)
     async function monitor() {
       const date = document.getElementById('datePicker').value;
       try {
         const res = await fetch(`${PROXY_BASE}/api/games?date=${date}`);
         const { response } = await res.json();
 
-        // atualizar chart base
         const now = new Date();
         response.forEach(m => {
           const total = m.scores.home + m.scores.away;
@@ -385,7 +370,6 @@
         });
         chart.update();
 
-        // checar cada config
         document.querySelectorAll('.config-row').forEach(r => {
           const [s,o,u] = r.querySelectorAll('select,input,input');
           const match = response.find(x=>x.id==s.value);
@@ -417,7 +401,6 @@
       startButton.onclick = startMonitoring;
     }
 
-    // Init Chart.js
     function initChart() {
       const ctx = document.getElementById('scoreChart').getContext('2d');
       chart = new Chart(ctx, {
@@ -427,7 +410,6 @@
       });
     }
 
-    // Settings Modal
     function loadSettings() {
       settings = JSON.parse(localStorage.getItem('ouSettings')||'{}');
       pollingInterval = settings.interval || pollingInterval;
@@ -446,7 +428,6 @@
       settingsModal.classList.add('hidden');
     }
 
-    // Theme Toggle
     function toggleTheme() {
       const html = document.documentElement;
       const next = html.dataset.theme === 'light' ? 'dark' : 'light';
@@ -454,16 +435,14 @@
       document.getElementById('themeToggle').textContent = next==='light' ? '🌙' : '☀️';
     }
 
-    // Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', ()=>{
-        navigator.serviceWorker.register('sw.js')
+        navigator.serviceWorker.register('sw.js') 
           .then(()=>console.log('SW registrado'))
           .catch(console.error);
       });
     }
 
-    // Element refs
     const startButton     = document.getElementById('startButton');
     const addConfigBtn    = document.getElementById('addConfigBtn');
     const openSettings    = document.getElementById('openSettings');
@@ -473,7 +452,6 @@
     const themeToggle     = document.getElementById('themeToggle');
     const notifications   = document.getElementById('notifications');
 
-    // Event Listeners
     window.addEventListener('load', ()=>{
       datePicker.value = new Date().toISOString().split('T')[0];
       fetchGames(datePicker.value);
