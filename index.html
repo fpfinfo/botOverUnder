@@ -1,131 +1,257 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Live Over/Under – NBA</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <meta name="theme-color" content="#0078d4">
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="theme-color" content="#0078d4" />
+
+  <!-- Chart.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    body { font-family:"Segoe UI",sans-serif; background:#f0f2f5; margin:0; color:#333; }
-    header { background:#0078d4; color:#fff; padding:1rem; text-align:center; }
-    #controls { display:flex; flex-wrap:wrap; gap:1rem; padding:1rem; background:#fff; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-    #controls > * { flex:1 1 200px; }
-    select, input, button { width:100%; padding:.5rem; font-size:1rem; border:1px solid #ccc; border-radius:.25rem; }
-    button { background:#0078d4; color:#fff; border:none; cursor:pointer; }
-    button:disabled { background:#aaa; cursor:not-allowed; }
-    #notifications { position:fixed; bottom:1rem; right:1rem; display:flex; flex-direction:column; gap:.5rem; z-index:1000; }
-    .toast { background:#333; color:#fff; padding:.75rem 1rem; border-radius:.25rem; opacity:.9; animation:fadeout .5s ease-in-out forwards; animation-delay:4s; }
-    @keyframes fadeout { to { opacity:0; transform:translateY(20px); } }
+    /* Variáveis de tema */
+    :root {
+      --bg: #f0f2f5;
+      --text: #333;
+      --control-bg: #fff;
+      --header-bg: #0078d4;
+      --header-text: #fff;
+      --toast-bg: #333;
+      --skeleton-base: #e0e0e0;
+      --skeleton-highlight: #f5f5f5;
+      transition: background .3s, color .3s;
+    }
+    [data-theme="dark"] {
+      --bg: #1e1e1e;
+      --text: #fafafa;
+      --control-bg: #2e2e2e;
+      --header-bg: #00509e;
+      --header-text: #fff;
+      --toast-bg: #444;
+      --skeleton-base: #3a3a3a;
+      --skeleton-highlight: #4a4a4a;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI",sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+    }
+    header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+    }
+    header h1 { margin: 0; font-size: 1.5rem; }
+    header button { background: none; border: none; color: inherit; font-size: 1.25rem; cursor: pointer; transition: transform .2s; }
+    header button:hover { transform: scale(1.1); }
+
+    #controls {
+      padding: 1rem 2rem;
+      background: var(--control-bg);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #controls > * { flex: 1 1 200px; }
+    input, select, button {
+      width: 100%;
+      padding: .5rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: .25rem;
+      background: #fff;
+      transition: border-color .2s;
+    }
+    input:focus, select:focus { border-color: #0078d4; outline: none; }
+    button {
+      background: #0078d4;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      transition: background .2s, transform .2s;
+    }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    button:hover:not(:disabled) { transform: translateY(-2px); }
+
+    /* Skeleton loader */
+    .skeleton {
+      background: var(--skeleton-base);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    .skeleton::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, var(--skeleton-highlight), transparent);
+      animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer { 100% { transform: translateX(200%); } }
+
+    /* Toasts */
+    #notifications {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+      z-index: 1000;
+    }
+    .toast {
+      background: var(--toast-bg);
+      color: #fff;
+      padding: .75rem 1rem;
+      border-radius: .25rem;
+      opacity: .9;
+      animation: fadeout .5s ease-in-out forwards;
+      animation-delay: 4s;
+    }
+    @keyframes fadeout { to { opacity: 0; transform: translateY(20px); } }
+
+    /* History & Stats */
+    #stats, #history {
+      padding: 1rem 2rem;
+    }
+    #historyList { list-style: none; padding: 0; max-height: 150px; overflow-y: auto; }
+    #historyList li { margin-bottom: .5rem; }
+
+    /* Modal Settings */
+    .modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .modal.hidden { display: none; }
+    .modal-content {
+      background: var(--control-bg);
+      padding: 2rem;
+      border-radius: .5rem;
+      max-width: 400px;
+      width: 100%;
+    }
+    .modal-content h2 { margin-top: 0; }
+    .modal-content label { display: block; margin: .5rem 0 0; }
+    .modal-content input, .modal-content button { width: 100%; }
+    .modal-content button { margin-top: 1rem; }
+
+    /* Datepicker */
+    #datePicker { max-width: 200px; }
+
+    /* Dark mode toggle */
+    #themeToggle { font-size: 1.25rem; }
   </style>
 </head>
 <body>
-  <header><h1>⚡ Live Over/Under – NBA</h1></header>
+  <header>
+    <h1>⚡ Live Over/Under – NBA</h1>
+    <div>
+      <button id="themeToggle" title="Alternar Tema">🌙</button>
+      <button id="openSettings" title="Configurações">⚙️</button>
+    </div>
+  </header>
+
   <section id="controls">
-    <select id="gameSelect" disabled><option value="">Carregando jogos da NBA...</option></select>
-    <input type="number" id="limitOver" placeholder="Limite Over (pontos)"/>
-    <input type="number" id="limitUnder" placeholder="Limite Under (pontos)"/>
+    <input type="date" id="datePicker" />
+    <button id="addConfigBtn">+ Adicionar Jogo</button>
+    <div id="configs"></div>
     <button id="startButton" disabled>🔔 Começar Monitoramento</button>
   </section>
-  <div id="notifications"></div>
+
+  <section id="chartSection" style="padding:1rem 2rem;">
+    <canvas id="scoreChart" height="200"></canvas>
+  </section>
+
+  <section id="stats">
+    <p><strong>Notificações enviadas:</strong> <span id="statCount">0</span></p>
+    <p><strong>Maior total observado:</strong> <span id="statMax">0</span></p>
+  </section>
+
+  <section id="history">
+    <h2>Meus Jogos</h2>
+    <ul id="historyList"></ul>
+  </section>
+
+  <div id="notifications" aria-live="polite" role="status"></div>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Configurações</h2>
+      <label>Intervalo (segundos):<input type="number" id="settingInterval" min="5" /></label>
+      <label>Som nas notificações:<input type="checkbox" id="settingSound" /></label>
+      <label>Volume:<input type="range" id="settingVolume" min="0" max="1" step="0.1" /></label>
+      <label>Webhook (Telegram/Slack):<input type="url" id="settingWebhook" placeholder="https://..." /></label>
+      <button id="saveSettings">Salvar</button>
+    </div>
+  </div>
+
+  <template id="configTemplate">
+    <div class="config-row" style="display:flex;gap:.5rem;align-items:center; margin-bottom:.5rem;">
+      <select class="gameSelectRow"></select>
+      <input type="number" class="limitOverRow" placeholder="Over" />
+      <input type="number" class="limitUnderRow" placeholder="Under" />
+      <button class="removeRow">✖️</button>
+    </div>
+  </template>
+
   <script>
-    const gameSelect = document.getElementById("gameSelect");
-    const limitOver = document.getElementById("limitOver");
-    const limitUnder = document.getElementById("limitUnder");
-    const startButton = document.getElementById("startButton");
-    const notifications = document.getElementById("notifications");
-    let intervalId;
+    const PROXY_BASE = 'https://overunder-nba-proxy.herokuapp.com';
+    let pollingInterval = 15;
+    let settings = JSON.parse(localStorage.getItem('ouSettings')||'{}');
+    let gamesList = [];
+    let intervalId, chart;
+    let statCount = 0, statMax = 0;
 
     function showToast(msg) {
-      const div = document.createElement("div");
-      div.className = "toast";
-      div.textContent = msg;
-      notifications.appendChild(div);
-      setTimeout(() => notifications.removeChild(div), 5000);
+      const div = document.createElement('div'); div.className = 'toast'; div.textContent = msg;
+      document.getElementById('notifications').appendChild(div);
+      setTimeout(() => div.remove(), 5000);
+      if (Notification.permission==='granted') new Notification(msg);
+      if (settings.webhook) fetch(settings.webhook,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msg})});
+      statCount++; document.getElementById('statCount').textContent=statCount;
+      const total=+msg.match(/\d+/)[0]; if(total>statMax){statMax=total;document.getElementById('statMax').textContent=statMax;}
+      const hist=JSON.parse(localStorage.getItem('ouHistory')||'[]'); hist.unshift({time:new Date().toLocaleTimeString(),msg});
+      localStorage.setItem('ouHistory',JSON.stringify(hist.slice(0,50))); renderHistory();
+      if(settings.sound){const snd=new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg'); snd.volume=settings.volume||0.5; snd.play().catch(()=>{});}
     }
 
-    function getLocalDate() {
-      const d = new Date();
-      const dd = String(d.getDate()).padStart(2, '0');
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const yy = d.getFullYear();
-      return `${yy}-${mm}-${dd}`;
+    function renderHistory(){
+      const hist=JSON.parse(localStorage.getItem('ouHistory')||'[]');
+      const ul=document.getElementById('historyList'); ul.innerHTML='';
+      hist.forEach(h=>{const li=document.createElement('li');li.textContent=`[${h.time}] ${h.msg}`;ul.appendChild(li);});
     }
 
-    async function fetchGames() {
-      const date = getLocalDate();
-      try {
-        const res = await fetch(`/api/games?date=${date}`);
-        const { response } = await res.json();
-        gameSelect.innerHTML = '<option value="">Selecione o Jogo...</option>';
-        if (!response.length) {
-          gameSelect.innerHTML = '<option value="">Nenhum jogo hoje</option>';
-        } else {
-          response.forEach(g => {
-            const o = document.createElement("option");
-            o.value = g.id;
-            o.textContent = `${g.teams.home.nickname} @ ${g.teams.away.nickname}`;
-            gameSelect.appendChild(o);
-          });
-        }
-      } catch {
-        showToast("❌ Erro ao carregar jogos");
-      }
-      gameSelect.disabled = false;
+    async function fetchGames(date){
+      const cfgs=document.getElementById('configs'); cfgs.innerHTML='';
+      for(let i=0;i<3;i++){const sk=document.createElement('div');sk.className='skeleton';sk.style.height='2.5rem';cfgs.appendChild(sk);}
+      try{const res=await fetch(`${PROXY_BASE}/api/games?date=${date}`);gamesList=(await res.json()).response;}catch(e){console.error(e);showToast('❌ Erro ao carregar jogos');}
+      cfgs.innerHTML=''; addConfigRow();
     }
 
-    function checkEnable() {
-      startButton.disabled = !(gameSelect.value && limitOver.value && limitUnder.value);
-    }
+    function addConfigRow(){
+      const tpl=document.getElementById('configTemplate'); const fragment=tpl.content.cloneNode(true);
+      const row=fragment.querySelector('.config-row');
+      const sel=row.querySelector('.gameSelectRow'); sel.innerHTML='<option value="">Selecione jogo...</option>';
+      gamesList.forEach(g=>{const o=document.createElement('option');o
 
-    async function monitor() {
-      const date = getLocalDate();
-      const gameId = gameSelect.value;
-      const over = +limitOver.value;
-      const under = +limitUnder.value;
-      try {
-        const res = await fetch(`/api/games?date=${date}`);
-        const { response } = await res.json();
-        const match = response.find(m => m.id == gameId);
-        if (!match) return;
-        const total = match.scores.home + match.scores.away;
-        if (total >= over) showToast(`🔥 OVER! Total: ${total} ≥ ${over}`);
-        else if (total <= under) showToast(`❄️ UNDER! Total: ${total} ≤ ${under}`);
-      } catch {
-        showToast("❌ Erro no monitoramento");
-      }
-    }
-
-    function startMonitoring() {
-      clearInterval(intervalId);
-      showToast("🚀 Monitoramento iniciado");
-      monitor();
-      intervalId = setInterval(monitor, 15000);
-      startButton.textContent = "⏸️ Pausar";
-      startButton.onclick = stopMonitoring;
-    }
-
-    function stopMonitoring() {
-      clearInterval(intervalId);
-      showToast("🛑 Monitoramento pausado");
-      startButton.textContent = "🔔 Começar";
-      startButton.onclick = startMonitoring;
-    }
-
-    gameSelect.addEventListener("change", checkEnable);
-    limitOver.addEventListener("input", checkEnable);
-    limitUnder.addEventListener("input", checkEnable);
-    startButton.addEventListener("click", startMonitoring);
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').then(() => console.log('SW registrado')).catch(console.error);
-      });
-    }
-
-    fetchGames();
-  </script>
-</body>
-</html>
+    
