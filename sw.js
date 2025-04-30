@@ -1,39 +1,54 @@
-const CACHE_NAME = 'nba-overunder-v1';
-const ASSETS = [
-  '/', 'index.html', 'manifest.json',
-  'sw.js',
-  'icons/icon-192.png', 'icons/icon-512.png'
+const STATIC_CACHE = 'static-v1';
+const DYNAMIC_CACHE = 'dynamic-v1';
+const STATIC_FILES = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+self.addEventListener('install', evt => {
+  evt.waitUntil(
+    caches.open(STATIC_CACHE)
+      .then(cache => cache.addAll(STATIC_FILES))
   );
-  self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
+self.addEventListener('activate', evt => {
+  evt.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.map(key => key !== CACHE_NAME && caches.delete(key)))
+      Promise.all(
+        keys
+          .filter(k => k !== STATIC_CACHE && k !== DYNAMIC_CACHE)
+          .map(k => caches.delete(k))
+      )
     )
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api/games')) {
-    e.respondWith(
-      fetch(e.request).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(e.request, copy));
-        return res;
-      }).catch(() => caches.match(e.request))
+self.addEventListener('fetch', evt => {
+  const url = evt.request.url;
+
+  // API calls: network-first
+  if (url.includes('/api/')) {
+    evt.respondWith(
+      fetch(evt.request)
+        .then(res => {
+          return caches.open(DYNAMIC_CACHE).then(cache => {
+            cache.put(evt.request, res.clone());
+            return res;
+          });
+        })
+        .catch(() => caches.match(evt.request))
     );
-  } else {
-    e.respondWith(
-      caches.match(e.request).then(resp => resp || fetch(e.request))
-    );
+    return;
   }
+
+  // Static assets: cache-first
+  evt.respondWith(
+    caches.match(evt.request)
+      .then(resp => resp || fetch(evt.request))
+  );
 });

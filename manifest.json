@@ -1,9 +1,9 @@
 {
   "name": "Live Over/Under – NBA",
   "short_name": "OverUnderNBA",
-  "start_url": ".",
+  "start_url": "/index.html",
   "display": "standalone",
-  "background_color": "#f0f2f5",
+  "background_color": "#0078d4",
   "theme_color": "#0078d4",
   "icons": [
     {
